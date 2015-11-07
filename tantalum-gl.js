@@ -17,9 +17,9 @@ var tgl = {'init': function(gl, multiBufExt) {
     }
     
     tgl.Texture = function(width, height, channels, isFloat, isLinear, isClamped, texels) {
-        var coordMode   = isClamped ? gl.CLAMP_TO_EDGE : gl.REPEAT;
-        this.type       = isFloat   ? gl.FLOAT         : gl.UNSIGNED_BYTE;
-        this.format     = [gl.LUMINANCE, gl.RG, gl.RGB, gl.RGBA][channels - 1];
+        var coordMode = isClamped ? gl.CLAMP_TO_EDGE : gl.REPEAT;
+        this.type     = isFloat   ? gl.FLOAT         : gl.UNSIGNED_BYTE;
+        this.format   = [gl.LUMINANCE, gl.RG, gl.RGB, gl.RGBA][channels - 1];
         
         this.width  = width;
         this.height = height;
