@@ -245,7 +245,7 @@
 .render-loading {
     font: bold 23px "Helvetica Neue", Helvetica, Arial, sans-serif;
     background: none;
-    color: black;
+    color: #AAA;
 }
  
 .render-help {
