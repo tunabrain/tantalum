@@ -1,3 +1,7 @@
+body {
+    font-family: sans-serif;
+}
+
 .tantalum-render {
     margin: 0 auto;
     margin-bottom: 4px;
