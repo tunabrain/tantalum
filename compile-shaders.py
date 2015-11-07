@@ -39,4 +39,4 @@ for file in os.listdir(ShaderDir):
     
     entries.append("    '{}':\n{}".format(file.replace('.txt', ''), source))
 
-open("tantalum-shaders.js", 'w').write("var Shaders = {\n" + ",\n\n".join(entries) + "\n}")
+open("src/tantalum-shaders.js", 'w').write("var Shaders = {\n" + ",\n\n".join(entries) + "\n}")
