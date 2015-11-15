@@ -29,7 +29,7 @@ Ray unpackRay(vec4 posDir) {
     vec2 dir = posDir.zw;
     dir.x = abs(dir.x) < 1e-5 ? 1e-5 : dir.x; /* The nuclear option to fix NaN issues on some platforms */
     dir.y = abs(dir.y) < 1e-5 ? 1e-5 : dir.y;
-    return Ray(pos, dir, 1.0/dir, sign(dir));
+    return Ray(pos, normalize(dir), 1.0/dir, sign(dir));
 }
 
 void main() {

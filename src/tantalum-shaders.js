@@ -697,7 +697,7 @@ var Shaders = {
         '    dir.x = abs(dir.x) < 1e-5 ? 1e-5 : dir.x; /* The nuclear option to fix NaN i'  +
                                                           'ssues on some platforms */\n'    +
         '    dir.y = abs(dir.y) < 1e-5 ? 1e-5 : dir.y;\n'                                   +
-        '    return Ray(pos, dir, 1.0/dir, sign(dir));\n'                                   +
+        '    return Ray(pos, normalize(dir), 1.0/dir, sign(dir));\n'                        +
         '}\n\n'                                                                             +
 
         'void main() {\n'                                                                   +
