@@ -1,146 +1,47 @@
 var Shaders = {
-    'blend-test-frag':
-        '#include "preamble"\n\n'                                +
+    'scene4':
+        '#include "trace-frag"\n\n'                                                        +
 
-        'void main() {\n'                                        +
-        '    gl_FragColor = vec4(vec3(7.0, 59.0, -7.0), 1.0);\n' +
-        '}\n',
+        '#include "bsdf"\n'                                                                +
+        '#include "intersect"\n\n'                                                         +
 
-    'blend-test-pack-frag':
-        '#include "preamble"\n\n'                                     +
-
-        'uniform sampler2D Tex;\n\n'                                  +
-
-        'void main() {\n'                                             +
-        '    gl_FragColor = texture2D(Tex, vec2(0.5))*(1.0/255.0);\n' +
-        '}\n',
-
-    'blend-test-vert':
-        '#include "preamble"\n\n'                  +
-
-        'attribute vec3 Position;\n\n'             +
-
-        'void main(void) {\n'                      +
-        '    gl_Position = vec4(Position, 1.0);\n' +
-        '}\n',
-
-    'bsdf':
-        'float sellmeierIor(vec3 b, vec3 c, float lambda) {\n'                             +
-        '    float lSq = (lambda*1e-3)*(lambda*1e-3);\n'                                   +
-        '    return 1.0 + dot((b*lSq)/(lSq - c), vec3(1.0));\n'                            +
+        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
+        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
+        '    prismIntersect(ray, vec2(0.0, 0.0), 0.6, 1.0, isect);\n'                      +
         '}\n\n'                                                                            +
 
-        'float tanh(float x) {\n'                                                          +
-        '    if (abs(x) > 10.0) /* Prevent nasty overflow problems */\n'                   +
-        '        return sign(x);\n'                                                        +
-        '    float e = exp(-2.0*x);\n'                                                     +
-        '    return (1.0 - e)/(1.0 + e);\n'                                                +
-        '}\n'                                                                              +
-        'float atanh(float x) {\n'                                                         +
-        '    return 0.5*log((1.0 + x)/(1.0 - x));\n'                                       +
-        '}\n\n'                                                                            +
-
-        'float dielectricReflectance(float eta, float cosThetaI, out float cosThetaT) {\n' +
-        '    float sinThetaTSq = eta*eta*(1.0 - cosThetaI*cosThetaI);\n'                   +
-        '    if (sinThetaTSq > 1.0) {\n'                                                   +
-        '        cosThetaT = 0.0;\n'                                                       +
-        '        return 1.0;\n'                                                            +
+        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
+                                                              'out vec3 throughput) {\n'   +
+        '    if (isect.mat == 1.0) {\n'                                                    +
+        '        float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.05' +
+                                                          '96, 17.4688), lambda)/1.8;\n'   +
+        '        return sampleRoughDielectric(state, wiLocal, 0.1, ior);\n'                +
+        '    } else {\n'                                                                   +
+        '        throughput *= vec3(0.05);\n'                                              +
+        '        return sampleDiffuse(state, wiLocal);\n'                                  +
         '    }\n'                                                                          +
-        '    cosThetaT = sqrt(1.0 - sinThetaTSq);\n\n'                                     +
-
-        '    float Rs = (eta*cosThetaI - cosThetaT)/(eta*cosThetaI + cosThetaT);\n'        +
-        '    float Rp = (eta*cosThetaT - cosThetaI)/(eta*cosThetaT + cosThetaI);\n\n'      +
-
-        '    return (Rs*Rs + Rp*Rp)*0.5;\n'                                                +
-        '}\n\n'                                                                            +
-
-        'vec2 sampleDiffuse(inout vec4 state, vec2 wi) {\n'                                +
-        '    float x = rand(state)*2.0 - 1.0;\n'                                           +
-        '    float y = sqrt(1.0 - x*x);\n'                                                 +
-        '    return vec2(x, y*sign(wi.y));\n'                                              +
-        '}\n'                                                                              +
-        'vec2 sampleMirror(vec2 wi) {\n'                                                   +
-        '    return vec2(-wi.x, wi.y);\n'                                                  +
-        '}\n'                                                                              +
-        'vec2 sampleDielectric(inout vec4 state, vec2 wi, float ior) {\n'                  +
-        '    float cosThetaT;\n'                                                           +
-        '    float eta = wi.y < 0.0 ? ior : 1.0/ior;\n'                                    +
-        '    float Fr = dielectricReflectance(eta, abs(wi.y), cosThetaT);\n'               +
-        '    if (rand(state) < Fr)\n'                                                      +
-        '        return vec2(-wi.x, wi.y);\n'                                              +
-        '    else\n'                                                                       +
-        '        return vec2(-wi.x*eta, -cosThetaT*sign(wi.y));\n'                         +
-        '}\n\n'                                                                            +
-
-        'float sampleVisibleNormal(float sigma, float xi, float theta0, float theta1) {\n' +
-        '    float sigmaSq = sigma*sigma;\n'                                               +
-        '    float invSigmaSq = 1.0/sigmaSq;\n\n'                                          +
-
-        '    float cdf0 = tanh(theta0*0.5*invSigmaSq);\n'                                  +
-        '    float cdf1 = tanh(theta1*0.5*invSigmaSq);\n\n'                                +
-
-        '    return 2.0*sigmaSq*atanh(cdf0 + (cdf1 - cdf0)*xi);\n'                         +
-        '}\n'                                                                              +
-        'vec2 sampleRoughMirror(inout vec4 state, vec2 wi, inout vec3 throughput, float s' +
-                                                                             'igma) {\n'   +
-        '    float theta = asin(clamp(wi.x, -1.0, 1.0));\n'                                +
-        '    float theta0 = max(theta - PI_HALF, -PI_HALF);\n'                             +
-        '    float theta1 = min(theta + PI_HALF,  PI_HALF);\n\n'                           +
-
-        '    float thetaM = sampleVisibleNormal(sigma, rand(state), theta0, theta1);\n'    +
-        '    vec2 m = vec2(sin(thetaM), cos(thetaM));\n'                                   +
-        '    vec2 wo = m*(dot(wi, m)*2.0) - wi;\n'                                         +
-        '    if (wo.y < 0.0)\n'                                                            +
-        '        throughput = vec3(0.0);\n'                                                +
-        '    return wo;\n'                                                                 +
-        '}\n'                                                                              +
-        'vec2 sampleRoughDielectric(inout vec4 state, vec2 wi, float sigma, float ior)\n'  +
-        '{\n'                                                                              +
-        '    float theta = asin(min(abs(wi.x), 1.0));\n'                                   +
-        '    float theta0 = max(theta - PI_HALF, -PI_HALF);\n'                             +
-        '    float theta1 = min(theta + PI_HALF,  PI_HALF);\n\n'                           +
-
-        '    float thetaM = sampleVisibleNormal(sigma, rand(state), theta0, theta1);\n'    +
-        '    vec2 m = vec2(sin(thetaM), cos(thetaM));\n\n'                                 +
-
-        '    float wiDotM = dot(wi, m);\n\n'                                               +
-
-        '    float cosThetaT;\n'                                                           +
-        '    float etaM = wiDotM < 0.0 ? ior : 1.0/ior;\n'                                 +
-        '    float F = dielectricReflectance(etaM, abs(wiDotM), cosThetaT);\n'             +
-        '    if (wiDotM < 0.0)\n'                                                          +
-        '        cosThetaT = -cosThetaT;\n\n'                                              +
-
-        '    if (rand(state) < F)\n'                                                       +
-        '        return 2.0*wiDotM*m - wi;\n'                                              +
-        '    else\n'                                                                       +
-        '        return (etaM*wiDotM - cosThetaT)*m - etaM*wi;\n'                          +
         '}\n',
 
-    'compose-frag':
-        '#include "preamble"\n\n'                                                          +
+    'scene5':
+        '#include "trace-frag"\n\n'                                                        +
 
-        'uniform sampler2D Frame;\n'                                                       +
-        'uniform float Exposure;\n\n'                                                      +
+        '#include "bsdf"\n'                                                                +
+        '#include "intersect"\n'                                                           +
+        '#include "csg-intersect"\n\n'                                                     +
 
-        'varying vec2 vTexCoord;\n\n'                                                      +
+        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
+        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
+        '    planoConcaveLensIntersect(ray, vec2(0.8, 0.0), 0.6, 0.3, 0.6, 1.0, isect);\n' +
+        '}\n\n'                                                                            +
 
-        'void main() {\n'                                                                  +
-        '    gl_FragColor = vec4(pow(texture2D(Frame, vTexCoord).rgb*Exposure, vec3(1.0/2' +
-                                                                         '.2)), 1.0);\n'   +
-        '}\n',
-
-    'compose-vert':
-        '#include "preamble"\n\n'                  +
-
-        'attribute vec3 Position;\n'               +
-        'attribute vec2 TexCoord;\n\n'             +
-
-        'varying vec2 vTexCoord;\n\n'              +
-
-        'void main(void) {\n'                      +
-        '    gl_Position = vec4(Position, 1.0);\n' +
-        '    vTexCoord = TexCoord;\n'              +
+        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
+                                                              'out vec3 throughput) {\n'   +
+        '    if (isect.mat == 1.0) {\n'                                                    +
+        '        return sampleMirror(wiLocal);\n'                                          +
+        '    } else {\n'                                                                   +
+        '        throughput *= vec3(0.5);\n'                                               +
+        '        return sampleDiffuse(state, wiLocal);\n'                                  +
+        '    }\n'                                                                          +
         '}\n',
 
     'csg-intersect':
@@ -276,48 +177,336 @@ var Shaders = {
         '    ), matId, isect);\n'                                                           +
         '}\n',
 
-    'init-frag':
-        '#extension GL_EXT_draw_buffers : require\n'                                       +
-        '#include "preamble"\n\n'                                                          +
+    'rand':
+        'float rand(inout vec4 state) {\n'                                         +
+        '    const vec4 q = vec4(   1225.0,    1585.0,    2457.0,    2098.0);\n'   +
+        '    const vec4 r = vec4(   1112.0,     367.0,      92.0,     265.0);\n'   +
+        '    const vec4 a = vec4(   3423.0,    2646.0,    1707.0,    1999.0);\n'   +
+        '    const vec4 m = vec4(4194287.0, 4194277.0, 4194191.0, 4194167.0);\n\n' +
 
-        '#include "rand"\n\n'                                                              +
+        '    vec4 beta = floor(state/q);\n'                                        +
+        '    vec4 p = a*(state - beta*q) - beta*r;\n'                              +
+        '    beta = (1.0 - sign(p))*0.5*m;\n'                                      +
+        '    state = p + beta;\n'                                                  +
+        '    return fract(dot(state/m, vec4(1.0, -1.0, 1.0, -1.0)));\n'            +
+        '}\n',
 
-        'uniform sampler2D RngData;\n'                                                     +
-        'uniform sampler2D Spectrum;\n'                                                    +
-        'uniform sampler2D Emission;\n'                                                    +
-        'uniform sampler2D ICDF;\n'                                                        +
-        'uniform sampler2D PDF;\n'                                                         +
-        'uniform vec2 EmitterPos;\n'                                                       +
-        'uniform vec2 EmitterDir;\n'                                                       +
-        'uniform float EmitterPower;\n'                                                    +
-        'uniform float SpatialSpread;\n'                                                   +
-        'uniform vec2 AngularSpread;\n\n'                                                  +
+    'preamble':
+        '#define PI      3.1415926536\n'   +
+        '#define PI_HALF 1.5707963268\n\n' +
 
-        'varying vec2 vTexCoord;\n\n'                                                      +
+        'precision highp float;\n',
 
-        'void main() {\n'                                                                  +
-        '    vec4 state = texture2D(RngData, vTexCoord);\n\n'                              +
+    'scene7':
+        '#include "trace-frag"\n\n'                                                        +
 
-        '    float theta = AngularSpread.x + (rand(state) - 0.5)*AngularSpread.y;\n'       +
-        '    vec2 dir = vec2(cos(theta), sin(theta));\n'                                   +
-        '    vec2 pos = EmitterPos + (rand(state) - 0.5)*SpatialSpread*vec2(-EmitterDir.y' +
-                                                                    ', EmitterDir.x);\n\n' +
+        '#include "bsdf"\n'                                                                +
+        '#include "intersect"\n'                                                           +
+        '#include "csg-intersect"\n\n'                                                     +
 
-        '    float randL = rand(state);\n'                                                 +
-        '    float spectrumOffset = texture2D(ICDF, vec2(randL, 0.5)).r + rand(state)*(1.' +
-                                                                           '0/256.0);\n'   +
-        '    float lambda = 360.0 + (750.0 - 360.0)*spectrumOffset;\n'                     +
-        '    vec3 rgb = EmitterPower\n'                                                    +
-        '                    *texture2D(Emission, vec2(spectrumOffset, 0.5)).r\n'          +
-        '                    *texture2D(Spectrum, vec2(spectrumOffset, 0.5)).rgb\n'        +
-        '                    /texture2D(PDF,      vec2(spectrumOffset, 0.5)).r;\n\n'       +
+        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
+        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
+        '    sphereIntersect(ray, vec2(0.0, 0.0), 0.4, 1.0, isect);\n'                     +
+        '    biconvexLensIntersect(ray, vec2(-0.4, -0.65), 0.3, 0.12, 0.5, 0.5, 1.0, isec' +
+                                                                                 't);\n'   +
+        '    meniscusLensIntersect(ray, vec2(-0.8, -0.65), 0.3, 0.08, -0.5, -0.5, 1.0, is' +
+                                                                               'ect);\n'   +
+        '    planoConcaveLensIntersect(ray, vec2(1.3, 0.0), 0.3, 0.0, 0.3, 2.0, isect);\n' +
+        '    prismIntersect(ray, vec2(0.8, -0.7), 0.2, 1.0, isect);\n'                     +
+        '}\n\n'                                                                            +
 
-        '    gl_FragData[0] = vec4(pos, dir);\n'                                           +
-        '    gl_FragData[1] = state;\n'                                                    +
-        '    gl_FragData[2] = vec4(rgb, lambda);\n'                                        +
+        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
+                                                              'out vec3 throughput) {\n'   +
+        '    if (isect.mat == 1.0) {\n'                                                    +
+        '        float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.05' +
+                                                 '96, 147.4688), lambda)/1.6; // SF10\n'   +
+        '        return sampleDielectric(state, wiLocal, ior);\n'                          +
+        '    } else if (isect.mat == 2.0) {\n'                                             +
+        '        return sampleMirror(wiLocal);\n'                                          +
+        '    } else {\n'                                                                   +
+        '        throughput *= vec3(0.25);\n'                                              +
+        '        return sampleDiffuse(state, wiLocal);\n'                                  +
+        '    }\n'                                                                          +
+        '}\n',
+
+    'scene6':
+        '#include "trace-frag"\n\n'                                                        +
+
+        '#include "bsdf"\n'                                                                +
+        '#include "intersect"\n\n'                                                         +
+
+        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
+        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
+        '    sphereIntersect(ray, vec2(-0.95,   0.25),    0.4, 1.0, isect);\n'             +
+        '    sphereIntersect(ray, vec2(-0.15,  -0.25),    0.2, 1.0, isect);\n'             +
+        '    sphereIntersect(ray, vec2(1.11667, 0.18333), 0.2, 1.0, isect);\n'             +
+        '    lineIntersect(ray, vec2(0.168689, -0.885424), vec2(1.13131,  -0.614576), 2.0' +
+                                                                           ', isect);\n'   +
+        '    lineIntersect(ray, vec2(1.71686,   0.310275), vec2(0.983139,  0.989725), 2.0' +
+                                                                           ', isect);\n'   +
+        '}\n\n'                                                                            +
+
+        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
+                                                              'out vec3 throughput) {\n'   +
+        '    if (isect.mat == 1.0) {\n'                                                    +
+        '        float ior = sqrt(sellmeierIor(vec3(1.0396, 0.2318, 1.0105), vec3(0.0060,' +
+                                                         ' 0.0200, 103.56), lambda));\n'   +
+        '        return sampleDielectric(state, wiLocal, ior);\n'                          +
+        '    } else if (isect.mat == 2.0) {\n'                                             +
+        '        return sampleMirror(wiLocal);\n'                                          +
+        '    } else {\n'                                                                   +
+        '        throughput *= vec3(0.5);\n'                                               +
+        '        return sampleDiffuse(state, wiLocal);\n'                                  +
+        '    }\n'                                                                          +
+        '}\n',
+
+    'scene2':
+        '#include "trace-frag"\n\n'                                                        +
+
+        '#include "bsdf"\n'                                                                +
+        '#include "intersect"\n\n'                                                         +
+
+        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
+        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
+        '    sphereIntersect(ray, vec2(-1.424, -0.8), 0.356, 1.0, isect);\n'               +
+        '    sphereIntersect(ray, vec2(-0.72,  -0.8), 0.356, 2.0, isect);\n'               +
+        '    sphereIntersect(ray, vec2( 0.0,   -0.8), 0.356, 3.0, isect);\n'               +
+        '    sphereIntersect(ray, vec2( 0.72,  -0.8), 0.356, 4.0, isect);\n'               +
+        '    sphereIntersect(ray, vec2( 1.424, -0.8), 0.356, 5.0, isect);\n'               +
+        '}\n\n'                                                                            +
+
+        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
+                                                              'out vec3 throughput) {\n'   +
+        '           if (isect.mat == 1.0) { return sampleRoughMirror(state, wiLocal, thro' +
+                                                                      'ughput, 0.02);\n'   +
+        '    } else if (isect.mat == 2.0) { return sampleRoughMirror(state, wiLocal, thro' +
+                                                                      'ughput, 0.05);\n'   +
+        '    } else if (isect.mat == 3.0) { return sampleRoughMirror(state, wiLocal, thro' +
+                                                                       'ughput, 0.1);\n'   +
+        '    } else if (isect.mat == 4.0) { return sampleRoughMirror(state, wiLocal, thro' +
+                                                                       'ughput, 0.2);\n'   +
+        '    } else if (isect.mat == 5.0) { return sampleRoughMirror(state, wiLocal, thro' +
+                                                                       'ughput, 0.5);\n'   +
+        '    } else {\n'                                                                   +
+        '        throughput *= vec3(0.5);\n'                                               +
+        '        return sampleDiffuse(state, wiLocal);\n'                                  +
+        '    }\n'                                                                          +
+        '}\n',
+
+    'scene3':
+        '#include "trace-frag"\n\n'                                                        +
+
+        '#include "bsdf"\n'                                                                +
+        '#include "intersect"\n\n'                                                         +
+
+        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
+        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
+        '    bboxIntersect(ray, vec2(0.0), vec2(1.2,  0.8), 1.0, isect);\n'                +
+        '    sphereIntersect(ray, vec2(-0.7, -0.45), 0.35, 3.0, isect);\n'                 +
+        '    sphereIntersect(ray, vec2( 0.7, -0.45), 0.35, 2.0, isect);\n'                 +
+        '}\n\n'                                                                            +
+
+        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
+                                                              'out vec3 throughput) {\n'   +
+        '    if (isect.mat == 2.0) {\n'                                                    +
+        '        float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.05' +
+                                                         '96, 147.4688), lambda)/1.4;\n'   +
+        '        return sampleDielectric(state, wiLocal, ior);\n'                          +
+        '    } else if (isect.mat == 3.0) {\n'                                             +
+        '        return sampleMirror(wiLocal);\n'                                          +
+        '    } else if (isect.mat == 1.0) {\n'                                             +
+        '             if (isect.n.x == -1.0) throughput *= vec3(0.14,  0.45,  0.091);\n'   +
+        '        else if (isect.n.x ==  1.0) throughput *= vec3(0.63,  0.065, 0.05);\n'    +
+        '        else                        throughput *= vec3(0.725, 0.71,  0.68);\n'    +
+        '        return sampleDiffuse(state, wiLocal);\n'                                  +
+        '    } else {\n'                                                                   +
+        '        throughput *= vec3(0.5);\n'                                               +
+        '        return sampleDiffuse(state, wiLocal);\n'                                  +
+        '    }\n'                                                                          +
+        '}\n',
+
+    'scene1':
+        '#include "trace-frag"\n\n'                                                        +
+
+        '#include "bsdf"\n'                                                                +
+        '#include "intersect"\n'                                                           +
+        '#include "csg-intersect"\n\n'                                                     +
+
+        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
+        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
+        '    biconvexLensIntersect   (ray, vec2(-0.4, 0.0), 0.375, 0.15,   0.75, 0.75, 1.' +
+                                                                          '0, isect);\n'   +
+        '    biconcaveLensIntersect  (ray, vec2( 0.4, 0.0), 0.375, 0.0375, 0.75, 0.75, 1.' +
+                                                                          '0, isect);\n'   +
+        '    planoConvexLensIntersect(ray, vec2(-1.2, 0.0), 0.375, 0.075,  0.75,       1.' +
+                                                                          '0, isect);\n'   +
+        '    meniscusLensIntersect   (ray, vec2( 0.8, 0.0), 0.375, 0.15,   0.45, 0.75, 1.' +
+                                                                          '0, isect);\n'   +
+        '}\n\n'                                                                            +
+
+        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
+                                                              'out vec3 throughput) {\n'   +
+        '    if (isect.mat == 1.0) {\n'                                                    +
+        '        float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.05' +
+                                                         '96, 147.4688), lambda)/1.4;\n'   +
+        '        return sampleDielectric(state, wiLocal, ior);\n'                          +
+        '    } else {\n'                                                                   +
+        '        throughput *= vec3(0.5);\n'                                               +
+        '        return sampleDiffuse(state, wiLocal);\n'                                  +
+        '    }\n'                                                                          +
         '}\n',
 
     'init-vert':
+        '#include "preamble"\n\n'                  +
+
+        'attribute vec3 Position;\n'               +
+        'attribute vec2 TexCoord;\n\n'             +
+
+        'varying vec2 vTexCoord;\n\n'              +
+
+        'void main() {\n'                          +
+        '    gl_Position = vec4(Position, 1.0);\n' +
+        '    vTexCoord = TexCoord;\n'              +
+        '}\n',
+
+    'pass-frag':
+        '#include "preamble"\n\n'                                          +
+
+        'uniform sampler2D Frame;\n\n'                                     +
+
+        'varying vec2 vTexCoord;\n\n'                                      +
+
+        'void main() {\n'                                                  +
+        '    gl_FragColor = vec4(texture2D(Frame, vTexCoord).rgb, 1.0);\n' +
+        '}\n',
+
+    'compose-vert':
+        '#include "preamble"\n\n'                  +
+
+        'attribute vec3 Position;\n'               +
+        'attribute vec2 TexCoord;\n\n'             +
+
+        'varying vec2 vTexCoord;\n\n'              +
+
+        'void main(void) {\n'                      +
+        '    gl_Position = vec4(Position, 1.0);\n' +
+        '    vTexCoord = TexCoord;\n'              +
+        '}\n',
+
+    'blend-test-pack-frag':
+        '#include "preamble"\n\n'                                     +
+
+        'uniform sampler2D Tex;\n\n'                                  +
+
+        'void main() {\n'                                             +
+        '    gl_FragColor = texture2D(Tex, vec2(0.5))*(1.0/255.0);\n' +
+        '}\n',
+
+    'ray-vert':
+        '#include "preamble"\n\n'                                                          +
+
+        'uniform sampler2D PosDataA;\n'                                                    +
+        'uniform sampler2D PosDataB;\n'                                                    +
+        'uniform sampler2D RgbData;\n'                                                     +
+        'uniform float Aspect;\n\n'                                                        +
+
+        'attribute vec3 TexCoord;\n\n'                                                     +
+
+        'varying vec3 vColor;\n\n'                                                         +
+
+        'void main() {\n'                                                                  +
+        '    vec2 posA = texture2D(PosDataA, TexCoord.xy).xy;\n'                           +
+        '    vec2 posB = texture2D(PosDataB, TexCoord.xy).xy;\n'                           +
+        '    vec2 pos = mix(posA, posB, TexCoord.z);\n'                                    +
+        '    vec2 dir = posB - posA;\n'                                                    +
+        '    float biasCorrection = clamp(length(dir)/max(abs(dir.x), abs(dir.y)), 1.0, 1' +
+                                                                           '.414214);\n\n' +
+
+        '    gl_Position = vec4(pos.x/Aspect, pos.y, 0.0, 1.0);\n'                         +
+        '    vColor = texture2D(RgbData, TexCoord.xy).rgb*biasCorrection;\n'               +
+        '}\n',
+
+    'trace-frag':
+        '#extension GL_EXT_draw_buffers : require\n'                                        +
+        '#include "preamble"\n'                                                             +
+        '#include "rand"\n\n'                                                               +
+
+        'uniform sampler2D PosData;\n'                                                      +
+        'uniform sampler2D RngData;\n'                                                      +
+        'uniform sampler2D RgbData;\n\n'                                                    +
+
+        'varying vec2 vTexCoord;\n\n'                                                       +
+
+        'struct Ray {\n'                                                                    +
+        '    vec2 pos;\n'                                                                   +
+        '    vec2 dir;\n'                                                                   +
+        '    vec2 invDir;\n'                                                                +
+        '    vec2 dirSign;\n'                                                               +
+        '};\n'                                                                              +
+        'struct Intersection {\n'                                                           +
+        '    float tMin;\n'                                                                 +
+        '    float tMax;\n'                                                                 +
+        '    vec2 n;\n'                                                                     +
+        '    float mat;\n'                                                                  +
+        '};\n\n'                                                                            +
+
+        'void intersect(Ray ray, inout Intersection isect);\n'                              +
+        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in'  +
+                                                               'out vec3 throughput);\n\n'  +
+
+        'Ray unpackRay(vec4 posDir) {\n'                                                    +
+        '    vec2 pos = posDir.xy;\n'                                                       +
+        '    vec2 dir = posDir.zw;\n'                                                       +
+        '    dir.x = abs(dir.x) < 1e-5 ? 1e-5 : dir.x; /* The nuclear option to fix NaN i'  +
+                                                          'ssues on some platforms */\n'    +
+        '    dir.y = abs(dir.y) < 1e-5 ? 1e-5 : dir.y;\n'                                   +
+        '    return Ray(pos, normalize(dir), 1.0/dir, sign(dir));\n'                        +
+        '}\n\n'                                                                             +
+
+        'void main() {\n'                                                                   +
+        '    vec4 posDir    = texture2D(PosData, vTexCoord);\n'                             +
+        '    vec4 state     = texture2D(RngData, vTexCoord);\n'                             +
+        '    vec4 rgbLambda = texture2D(RgbData, vTexCoord);\n\n'                           +
+
+        '    Ray ray = unpackRay(posDir);\n'                                                +
+        '    Intersection isect;\n'                                                         +
+        '    isect.tMin = 1e-4;\n'                                                          +
+        '    isect.tMax = 1e30;\n'                                                          +
+        '    intersect(ray, isect);\n\n'                                                    +
+
+        '    vec2 t = vec2(-isect.n.y, isect.n.x);\n'                                       +
+        '    vec2 wiLocal = -vec2(dot(t, ray.dir), dot(isect.n, ray.dir));\n'               +
+        '    vec2 woLocal = sample(state, isect, rgbLambda.w, wiLocal, rgbLambda.rgb);\n\n' +
+
+        '    if (isect.tMax == 1e30) {\n'                                                   +
+        '        rgbLambda.rgb = vec3(0.0);\n'                                              +
+        '    } else {\n'                                                                    +
+        '        posDir.xy = ray.pos + ray.dir*isect.tMax;\n'                               +
+        '        posDir.zw = woLocal.y*isect.n + woLocal.x*t;\n'                            +
+        '    }\n\n'                                                                         +
+
+        '    gl_FragData[0] = posDir;\n'                                                    +
+        '    gl_FragData[1] = state;\n'                                                     +
+        '    gl_FragData[2] = rgbLambda;\n'                                                 +
+        '}\n',
+
+    'blend-test-vert':
+        '#include "preamble"\n\n'                  +
+
+        'attribute vec3 Position;\n\n'             +
+
+        'void main(void) {\n'                      +
+        '    gl_Position = vec4(Position, 1.0);\n' +
+        '}\n',
+
+    'blend-test-frag':
+        '#include "preamble"\n\n'                                +
+
+        'void main() {\n'                                        +
+        '    gl_FragColor = vec4(vec3(7.0, 59.0, -7.0), 1.0);\n' +
+        '}\n',
+
+    'trace-vert':
         '#include "preamble"\n\n'                  +
 
         'attribute vec3 Position;\n'               +
@@ -395,37 +584,6 @@ var Shaders = {
                                                        '  1.0)*radius, matId, isect);\n'   +
         '}\n',
 
-    'pass-frag':
-        '#include "preamble"\n\n'                                          +
-
-        'uniform sampler2D Frame;\n\n'                                     +
-
-        'varying vec2 vTexCoord;\n\n'                                      +
-
-        'void main() {\n'                                                  +
-        '    gl_FragColor = vec4(texture2D(Frame, vTexCoord).rgb, 1.0);\n' +
-        '}\n',
-
-    'preamble':
-        '#define PI      3.1415926536\n'   +
-        '#define PI_HALF 1.5707963268\n\n' +
-
-        'precision highp float;\n',
-
-    'rand':
-        'float rand(inout vec4 state) {\n'                                         +
-        '    const vec4 q = vec4(   1225.0,    1585.0,    2457.0,    2098.0);\n'   +
-        '    const vec4 r = vec4(   1112.0,     367.0,      92.0,     265.0);\n'   +
-        '    const vec4 a = vec4(   3423.0,    2646.0,    1707.0,    1999.0);\n'   +
-        '    const vec4 m = vec4(4194287.0, 4194277.0, 4194191.0, 4194167.0);\n\n' +
-
-        '    vec4 beta = floor(state/q);\n'                                        +
-        '    vec4 p = a*(state - beta*q) - beta*r;\n'                              +
-        '    beta = (1.0 - sign(p))*0.5*m;\n'                                      +
-        '    state = p + beta;\n'                                                  +
-        '    return fract(dot(state/m, vec4(1.0, -1.0, 1.0, -1.0)));\n'            +
-        '}\n',
-
     'ray-frag':
         '#include "preamble"\n\n'                 +
 
@@ -435,308 +593,150 @@ var Shaders = {
         '    gl_FragColor = vec4(vColor, 1.0);\n' +
         '}\n',
 
-    'ray-vert':
+    'compose-frag':
         '#include "preamble"\n\n'                                                          +
 
-        'uniform sampler2D PosDataA;\n'                                                    +
-        'uniform sampler2D PosDataB;\n'                                                    +
-        'uniform sampler2D RgbData;\n'                                                     +
-        'uniform float Aspect;\n\n'                                                        +
+        'uniform sampler2D Frame;\n'                                                       +
+        'uniform float Exposure;\n\n'                                                      +
 
-        'attribute vec3 TexCoord;\n\n'                                                     +
-
-        'varying vec3 vColor;\n\n'                                                         +
+        'varying vec2 vTexCoord;\n\n'                                                      +
 
         'void main() {\n'                                                                  +
-        '    vec2 posA = texture2D(PosDataA, TexCoord.xy).xy;\n'                           +
-        '    vec2 posB = texture2D(PosDataB, TexCoord.xy).xy;\n'                           +
-        '    vec2 pos = mix(posA, posB, TexCoord.z);\n'                                    +
-        '    vec2 dir = posB - posA;\n'                                                    +
-        '    float biasCorrection = clamp(length(dir)/max(abs(dir.x), abs(dir.y)), 1.0, 1' +
-                                                                           '.414214);\n\n' +
-
-        '    gl_Position = vec4(pos.x/Aspect, pos.y, 0.0, 1.0);\n'                         +
-        '    vColor = texture2D(RgbData, TexCoord.xy).rgb*biasCorrection;\n'               +
+        '    gl_FragColor = vec4(pow(texture2D(Frame, vTexCoord).rgb*Exposure, vec3(1.0/2' +
+                                                                         '.2)), 1.0);\n'   +
         '}\n',
 
-    'scene1':
-        '#include "trace-frag"\n\n'                                                        +
-
-        '#include "bsdf"\n'                                                                +
-        '#include "intersect"\n'                                                           +
-        '#include "csg-intersect"\n\n'                                                     +
-
-        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
-        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
-        '    biconvexLensIntersect   (ray, vec2(-0.4, 0.0), 0.375, 0.15,   0.75, 0.75, 1.' +
-                                                                          '0, isect);\n'   +
-        '    biconcaveLensIntersect  (ray, vec2( 0.4, 0.0), 0.375, 0.0375, 0.75, 0.75, 1.' +
-                                                                          '0, isect);\n'   +
-        '    planoConvexLensIntersect(ray, vec2(-1.2, 0.0), 0.375, 0.075,  0.75,       1.' +
-                                                                          '0, isect);\n'   +
-        '    meniscusLensIntersect   (ray, vec2( 0.8, 0.0), 0.375, 0.15,   0.45, 0.75, 1.' +
-                                                                          '0, isect);\n'   +
+    'bsdf':
+        'float sellmeierIor(vec3 b, vec3 c, float lambda) {\n'                             +
+        '    float lSq = (lambda*1e-3)*(lambda*1e-3);\n'                                   +
+        '    return 1.0 + dot((b*lSq)/(lSq - c), vec3(1.0));\n'                            +
         '}\n\n'                                                                            +
 
-        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
-                                                              'out vec3 throughput) {\n'   +
-        '    if (isect.mat == 1.0) {\n'                                                    +
-        '        float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.05' +
-                                                         '96, 147.4688), lambda)/1.4;\n'   +
-        '        return sampleDielectric(state, wiLocal, ior);\n'                          +
-        '    } else {\n'                                                                   +
-        '        throughput *= vec3(0.5);\n'                                               +
-        '        return sampleDiffuse(state, wiLocal);\n'                                  +
-        '    }\n'                                                                          +
-        '}\n',
-
-    'scene2':
-        '#include "trace-frag"\n\n'                                                        +
-
-        '#include "bsdf"\n'                                                                +
-        '#include "intersect"\n\n'                                                         +
-
-        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
-        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
-        '    sphereIntersect(ray, vec2(-1.424, -0.8), 0.356, 1.0, isect);\n'               +
-        '    sphereIntersect(ray, vec2(-0.72,  -0.8), 0.356, 2.0, isect);\n'               +
-        '    sphereIntersect(ray, vec2( 0.0,   -0.8), 0.356, 3.0, isect);\n'               +
-        '    sphereIntersect(ray, vec2( 0.72,  -0.8), 0.356, 4.0, isect);\n'               +
-        '    sphereIntersect(ray, vec2( 1.424, -0.8), 0.356, 5.0, isect);\n'               +
+        'float tanh(float x) {\n'                                                          +
+        '    if (abs(x) > 10.0) /* Prevent nasty overflow problems */\n'                   +
+        '        return sign(x);\n'                                                        +
+        '    float e = exp(-2.0*x);\n'                                                     +
+        '    return (1.0 - e)/(1.0 + e);\n'                                                +
+        '}\n'                                                                              +
+        'float atanh(float x) {\n'                                                         +
+        '    return 0.5*log((1.0 + x)/(1.0 - x));\n'                                       +
         '}\n\n'                                                                            +
 
-        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
-                                                              'out vec3 throughput) {\n'   +
-        '           if (isect.mat == 1.0) { return sampleRoughMirror(state, wiLocal, thro' +
-                                                                      'ughput, 0.02);\n'   +
-        '    } else if (isect.mat == 2.0) { return sampleRoughMirror(state, wiLocal, thro' +
-                                                                      'ughput, 0.05);\n'   +
-        '    } else if (isect.mat == 3.0) { return sampleRoughMirror(state, wiLocal, thro' +
-                                                                       'ughput, 0.1);\n'   +
-        '    } else if (isect.mat == 4.0) { return sampleRoughMirror(state, wiLocal, thro' +
-                                                                       'ughput, 0.2);\n'   +
-        '    } else if (isect.mat == 5.0) { return sampleRoughMirror(state, wiLocal, thro' +
-                                                                       'ughput, 0.5);\n'   +
-        '    } else {\n'                                                                   +
-        '        throughput *= vec3(0.5);\n'                                               +
-        '        return sampleDiffuse(state, wiLocal);\n'                                  +
+        'float dielectricReflectance(float eta, float cosThetaI, out float cosThetaT) {\n' +
+        '    float sinThetaTSq = eta*eta*(1.0 - cosThetaI*cosThetaI);\n'                   +
+        '    if (sinThetaTSq > 1.0) {\n'                                                   +
+        '        cosThetaT = 0.0;\n'                                                       +
+        '        return 1.0;\n'                                                            +
         '    }\n'                                                                          +
-        '}\n',
+        '    cosThetaT = sqrt(1.0 - sinThetaTSq);\n\n'                                     +
 
-    'scene3':
-        '#include "trace-frag"\n\n'                                                        +
+        '    float Rs = (eta*cosThetaI - cosThetaT)/(eta*cosThetaI + cosThetaT);\n'        +
+        '    float Rp = (eta*cosThetaT - cosThetaI)/(eta*cosThetaT + cosThetaI);\n\n'      +
 
-        '#include "bsdf"\n'                                                                +
-        '#include "intersect"\n\n'                                                         +
-
-        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
-        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
-        '    bboxIntersect(ray, vec2(0.0), vec2(1.2,  0.8), 1.0, isect);\n'                +
-        '    sphereIntersect(ray, vec2(-0.7, -0.45), 0.35, 3.0, isect);\n'                 +
-        '    sphereIntersect(ray, vec2( 0.7, -0.45), 0.35, 2.0, isect);\n'                 +
+        '    return (Rs*Rs + Rp*Rp)*0.5;\n'                                                +
         '}\n\n'                                                                            +
 
-        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
-                                                              'out vec3 throughput) {\n'   +
-        '    if (isect.mat == 2.0) {\n'                                                    +
-        '        float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.05' +
-                                                         '96, 147.4688), lambda)/1.4;\n'   +
-        '        return sampleDielectric(state, wiLocal, ior);\n'                          +
-        '    } else if (isect.mat == 3.0) {\n'                                             +
-        '        return sampleMirror(wiLocal);\n'                                          +
-        '    } else if (isect.mat == 1.0) {\n'                                             +
-        '             if (isect.n.x == -1.0) throughput *= vec3(0.14,  0.45,  0.091);\n'   +
-        '        else if (isect.n.x ==  1.0) throughput *= vec3(0.63,  0.065, 0.05);\n'    +
-        '        else                        throughput *= vec3(0.725, 0.71,  0.68);\n'    +
-        '        return sampleDiffuse(state, wiLocal);\n'                                  +
-        '    } else {\n'                                                                   +
-        '        throughput *= vec3(0.5);\n'                                               +
-        '        return sampleDiffuse(state, wiLocal);\n'                                  +
-        '    }\n'                                                                          +
-        '}\n',
-
-    'scene4':
-        '#include "trace-frag"\n\n'                                                        +
-
-        '#include "bsdf"\n'                                                                +
-        '#include "intersect"\n\n'                                                         +
-
-        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
-        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
-        '    prismIntersect(ray, vec2(0.0, 0.0), 0.6, 1.0, isect);\n'                      +
+        'vec2 sampleDiffuse(inout vec4 state, vec2 wi) {\n'                                +
+        '    float x = rand(state)*2.0 - 1.0;\n'                                           +
+        '    float y = sqrt(1.0 - x*x);\n'                                                 +
+        '    return vec2(x, y*sign(wi.y));\n'                                              +
+        '}\n'                                                                              +
+        'vec2 sampleMirror(vec2 wi) {\n'                                                   +
+        '    return vec2(-wi.x, wi.y);\n'                                                  +
+        '}\n'                                                                              +
+        'vec2 sampleDielectric(inout vec4 state, vec2 wi, float ior) {\n'                  +
+        '    float cosThetaT;\n'                                                           +
+        '    float eta = wi.y < 0.0 ? ior : 1.0/ior;\n'                                    +
+        '    float Fr = dielectricReflectance(eta, abs(wi.y), cosThetaT);\n'               +
+        '    if (rand(state) < Fr)\n'                                                      +
+        '        return vec2(-wi.x, wi.y);\n'                                              +
+        '    else\n'                                                                       +
+        '        return vec2(-wi.x*eta, -cosThetaT*sign(wi.y));\n'                         +
         '}\n\n'                                                                            +
 
-        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
-                                                              'out vec3 throughput) {\n'   +
-        '    if (isect.mat == 1.0) {\n'                                                    +
-        '        float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.05' +
-                                                          '96, 17.4688), lambda)/1.8;\n'   +
-        '        return sampleRoughDielectric(state, wiLocal, 0.1, ior);\n'                +
-        '    } else {\n'                                                                   +
-        '        throughput *= vec3(0.05);\n'                                              +
-        '        return sampleDiffuse(state, wiLocal);\n'                                  +
-        '    }\n'                                                                          +
+        'float sampleVisibleNormal(float sigma, float xi, float theta0, float theta1) {\n' +
+        '    float sigmaSq = sigma*sigma;\n'                                               +
+        '    float invSigmaSq = 1.0/sigmaSq;\n\n'                                          +
+
+        '    float cdf0 = tanh(theta0*0.5*invSigmaSq);\n'                                  +
+        '    float cdf1 = tanh(theta1*0.5*invSigmaSq);\n\n'                                +
+
+        '    return 2.0*sigmaSq*atanh(cdf0 + (cdf1 - cdf0)*xi);\n'                         +
+        '}\n'                                                                              +
+        'vec2 sampleRoughMirror(inout vec4 state, vec2 wi, inout vec3 throughput, float s' +
+                                                                             'igma) {\n'   +
+        '    float theta = asin(clamp(wi.x, -1.0, 1.0));\n'                                +
+        '    float theta0 = max(theta - PI_HALF, -PI_HALF);\n'                             +
+        '    float theta1 = min(theta + PI_HALF,  PI_HALF);\n\n'                           +
+
+        '    float thetaM = sampleVisibleNormal(sigma, rand(state), theta0, theta1);\n'    +
+        '    vec2 m = vec2(sin(thetaM), cos(thetaM));\n'                                   +
+        '    vec2 wo = m*(dot(wi, m)*2.0) - wi;\n'                                         +
+        '    if (wo.y < 0.0)\n'                                                            +
+        '        throughput = vec3(0.0);\n'                                                +
+        '    return wo;\n'                                                                 +
+        '}\n'                                                                              +
+        'vec2 sampleRoughDielectric(inout vec4 state, vec2 wi, float sigma, float ior)\n'  +
+        '{\n'                                                                              +
+        '    float theta = asin(min(abs(wi.x), 1.0));\n'                                   +
+        '    float theta0 = max(theta - PI_HALF, -PI_HALF);\n'                             +
+        '    float theta1 = min(theta + PI_HALF,  PI_HALF);\n\n'                           +
+
+        '    float thetaM = sampleVisibleNormal(sigma, rand(state), theta0, theta1);\n'    +
+        '    vec2 m = vec2(sin(thetaM), cos(thetaM));\n\n'                                 +
+
+        '    float wiDotM = dot(wi, m);\n\n'                                               +
+
+        '    float cosThetaT;\n'                                                           +
+        '    float etaM = wiDotM < 0.0 ? ior : 1.0/ior;\n'                                 +
+        '    float F = dielectricReflectance(etaM, abs(wiDotM), cosThetaT);\n'             +
+        '    if (wiDotM < 0.0)\n'                                                          +
+        '        cosThetaT = -cosThetaT;\n\n'                                              +
+
+        '    if (rand(state) < F)\n'                                                       +
+        '        return 2.0*wiDotM*m - wi;\n'                                              +
+        '    else\n'                                                                       +
+        '        return (etaM*wiDotM - cosThetaT)*m - etaM*wi;\n'                          +
         '}\n',
 
-    'scene5':
-        '#include "trace-frag"\n\n'                                                        +
+    'init-frag':
+        '#extension GL_EXT_draw_buffers : require\n'                                       +
+        '#include "preamble"\n\n'                                                          +
 
-        '#include "bsdf"\n'                                                                +
-        '#include "intersect"\n'                                                           +
-        '#include "csg-intersect"\n\n'                                                     +
+        '#include "rand"\n\n'                                                              +
 
-        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
-        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
-        '    planoConcaveLensIntersect(ray, vec2(0.8, 0.0), 0.6, 0.3, 0.6, 1.0, isect);\n' +
-        '}\n\n'                                                                            +
+        'uniform sampler2D RngData;\n'                                                     +
+        'uniform sampler2D Spectrum;\n'                                                    +
+        'uniform sampler2D Emission;\n'                                                    +
+        'uniform sampler2D ICDF;\n'                                                        +
+        'uniform sampler2D PDF;\n'                                                         +
+        'uniform vec2 EmitterPos;\n'                                                       +
+        'uniform vec2 EmitterDir;\n'                                                       +
+        'uniform float EmitterPower;\n'                                                    +
+        'uniform float SpatialSpread;\n'                                                   +
+        'uniform vec2 AngularSpread;\n\n'                                                  +
 
-        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
-                                                              'out vec3 throughput) {\n'   +
-        '    if (isect.mat == 1.0) {\n'                                                    +
-        '        return sampleMirror(wiLocal);\n'                                          +
-        '    } else {\n'                                                                   +
-        '        throughput *= vec3(0.5);\n'                                               +
-        '        return sampleDiffuse(state, wiLocal);\n'                                  +
-        '    }\n'                                                                          +
-        '}\n',
+        'varying vec2 vTexCoord;\n\n'                                                      +
 
-    'scene6':
-        '#include "trace-frag"\n\n'                                                        +
+        'void main() {\n'                                                                  +
+        '    vec4 state = texture2D(RngData, vTexCoord);\n\n'                              +
 
-        '#include "bsdf"\n'                                                                +
-        '#include "intersect"\n\n'                                                         +
+        '    float theta = AngularSpread.x + (rand(state) - 0.5)*AngularSpread.y;\n'       +
+        '    vec2 dir = vec2(cos(theta), sin(theta));\n'                                   +
+        '    vec2 pos = EmitterPos + (rand(state) - 0.5)*SpatialSpread*vec2(-EmitterDir.y' +
+                                                                    ', EmitterDir.x);\n\n' +
 
-        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
-        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
-        '    sphereIntersect(ray, vec2(-0.95,   0.25),    0.4, 1.0, isect);\n'             +
-        '    sphereIntersect(ray, vec2(-0.15,  -0.25),    0.2, 1.0, isect);\n'             +
-        '    sphereIntersect(ray, vec2(1.11667, 0.18333), 0.2, 1.0, isect);\n'             +
-        '    lineIntersect(ray, vec2(0.168689, -0.885424), vec2(1.13131,  -0.614576), 2.0' +
-                                                                           ', isect);\n'   +
-        '    lineIntersect(ray, vec2(1.71686,   0.310275), vec2(0.983139,  0.989725), 2.0' +
-                                                                           ', isect);\n'   +
-        '}\n\n'                                                                            +
+        '    float randL = rand(state);\n'                                                 +
+        '    float spectrumOffset = texture2D(ICDF, vec2(randL, 0.5)).r + rand(state)*(1.' +
+                                                                           '0/256.0);\n'   +
+        '    float lambda = 360.0 + (750.0 - 360.0)*spectrumOffset;\n'                     +
+        '    vec3 rgb = EmitterPower\n'                                                    +
+        '                    *texture2D(Emission, vec2(spectrumOffset, 0.5)).r\n'          +
+        '                    *texture2D(Spectrum, vec2(spectrumOffset, 0.5)).rgb\n'        +
+        '                    /texture2D(PDF,      vec2(spectrumOffset, 0.5)).r;\n\n'       +
 
-        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
-                                                              'out vec3 throughput) {\n'   +
-        '    if (isect.mat == 1.0) {\n'                                                    +
-        '        float ior = sqrt(sellmeierIor(vec3(1.0396, 0.2318, 1.0105), vec3(0.0060,' +
-                                                         ' 0.0200, 103.56), lambda));\n'   +
-        '        return sampleDielectric(state, wiLocal, ior);\n'                          +
-        '    } else if (isect.mat == 2.0) {\n'                                             +
-        '        return sampleMirror(wiLocal);\n'                                          +
-        '    } else {\n'                                                                   +
-        '        throughput *= vec3(0.5);\n'                                               +
-        '        return sampleDiffuse(state, wiLocal);\n'                                  +
-        '    }\n'                                                                          +
-        '}\n',
-
-    'scene7':
-        '#include "trace-frag"\n\n'                                                        +
-
-        '#include "bsdf"\n'                                                                +
-        '#include "intersect"\n'                                                           +
-        '#include "csg-intersect"\n\n'                                                     +
-
-        'void intersect(Ray ray, inout Intersection isect) {\n'                            +
-        '    bboxIntersect(ray, vec2(0.0), vec2(1.78, 1.0), 0.0, isect);\n'                +
-        '    sphereIntersect(ray, vec2(0.0, 0.0), 0.4, 1.0, isect);\n'                     +
-        '    biconvexLensIntersect(ray, vec2(-0.4, -0.65), 0.3, 0.12, 0.5, 0.5, 1.0, isec' +
-                                                                                 't);\n'   +
-        '    meniscusLensIntersect(ray, vec2(-0.8, -0.65), 0.3, 0.08, -0.5, -0.5, 1.0, is' +
-                                                                               'ect);\n'   +
-        '    planoConcaveLensIntersect(ray, vec2(1.3, 0.0), 0.3, 0.0, 0.3, 2.0, isect);\n' +
-        '    prismIntersect(ray, vec2(0.8, -0.7), 0.2, 1.0, isect);\n'                     +
-        '}\n\n'                                                                            +
-
-        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in' +
-                                                              'out vec3 throughput) {\n'   +
-        '    if (isect.mat == 1.0) {\n'                                                    +
-        '        float ior = sellmeierIor(vec3(1.6215, 0.2563, 1.6445), vec3(0.0122, 0.05' +
-                                                 '96, 147.4688), lambda)/1.6; // SF10\n'   +
-        '        return sampleDielectric(state, wiLocal, ior);\n'                          +
-        '    } else if (isect.mat == 2.0) {\n'                                             +
-        '        return sampleMirror(wiLocal);\n'                                          +
-        '    } else {\n'                                                                   +
-        '        throughput *= vec3(0.25);\n'                                              +
-        '        return sampleDiffuse(state, wiLocal);\n'                                  +
-        '    }\n'                                                                          +
-        '}\n',
-
-    'trace-frag':
-        '#extension GL_EXT_draw_buffers : require\n'                                        +
-        '#include "preamble"\n'                                                             +
-        '#include "rand"\n\n'                                                               +
-
-        'uniform sampler2D PosData;\n'                                                      +
-        'uniform sampler2D RngData;\n'                                                      +
-        'uniform sampler2D RgbData;\n\n'                                                    +
-
-        'varying vec2 vTexCoord;\n\n'                                                       +
-
-        'struct Ray {\n'                                                                    +
-        '    vec2 pos;\n'                                                                   +
-        '    vec2 dir;\n'                                                                   +
-        '    vec2 invDir;\n'                                                                +
-        '    vec2 dirSign;\n'                                                               +
-        '};\n'                                                                              +
-        'struct Intersection {\n'                                                           +
-        '    float tMin;\n'                                                                 +
-        '    float tMax;\n'                                                                 +
-        '    vec2 n;\n'                                                                     +
-        '    float mat;\n'                                                                  +
-        '};\n\n'                                                                            +
-
-        'void intersect(Ray ray, inout Intersection isect);\n'                              +
-        'vec2 sample(inout vec4 state, Intersection isect, float lambda, vec2 wiLocal, in'  +
-                                                               'out vec3 throughput);\n\n'  +
-
-        'Ray unpackRay(vec4 posDir) {\n'                                                    +
-        '    vec2 pos = posDir.xy;\n'                                                       +
-        '    vec2 dir = posDir.zw;\n'                                                       +
-        '    dir.x = abs(dir.x) < 1e-5 ? 1e-5 : dir.x; /* The nuclear option to fix NaN i'  +
-                                                          'ssues on some platforms */\n'    +
-        '    dir.y = abs(dir.y) < 1e-5 ? 1e-5 : dir.y;\n'                                   +
-        '    return Ray(pos, normalize(dir), 1.0/dir, sign(dir));\n'                        +
-        '}\n\n'                                                                             +
-
-        'void main() {\n'                                                                   +
-        '    vec4 posDir    = texture2D(PosData, vTexCoord);\n'                             +
-        '    vec4 state     = texture2D(RngData, vTexCoord);\n'                             +
-        '    vec4 rgbLambda = texture2D(RgbData, vTexCoord);\n\n'                           +
-
-        '    Ray ray = unpackRay(posDir);\n'                                                +
-        '    Intersection isect;\n'                                                         +
-        '    isect.tMin = 1e-4;\n'                                                          +
-        '    isect.tMax = 1e30;\n'                                                          +
-        '    intersect(ray, isect);\n\n'                                                    +
-
-        '    vec2 t = vec2(-isect.n.y, isect.n.x);\n'                                       +
-        '    vec2 wiLocal = -vec2(dot(t, ray.dir), dot(isect.n, ray.dir));\n'               +
-        '    vec2 woLocal = sample(state, isect, rgbLambda.w, wiLocal, rgbLambda.rgb);\n\n' +
-
-        '    if (isect.tMax == 1e30) {\n'                                                   +
-        '        rgbLambda.rgb = vec3(0.0);\n'                                              +
-        '    } else {\n'                                                                    +
-        '        posDir.xy = ray.pos + ray.dir*isect.tMax;\n'                               +
-        '        posDir.zw = woLocal.y*isect.n + woLocal.x*t;\n'                            +
-        '    }\n\n'                                                                         +
-
-        '    gl_FragData[0] = posDir;\n'                                                    +
-        '    gl_FragData[1] = state;\n'                                                     +
-        '    gl_FragData[2] = rgbLambda;\n'                                                 +
-        '}\n',
-
-    'trace-vert':
-        '#include "preamble"\n\n'                  +
-
-        'attribute vec3 Position;\n'               +
-        'attribute vec2 TexCoord;\n\n'             +
-
-        'varying vec2 vTexCoord;\n\n'              +
-
-        'void main() {\n'                          +
-        '    gl_Position = vec4(Position, 1.0);\n' +
-        '    vTexCoord = TexCoord;\n'              +
+        '    gl_FragData[0] = vec4(pos, dir);\n'                                           +
+        '    gl_FragData[1] = state;\n'                                                    +
+        '    gl_FragData[2] = vec4(rgb, lambda);\n'                                        +
         '}\n'
 }

@@ -252,8 +252,16 @@ Tantalum.prototype.fail = function(message) {
 Tantalum.prototype.renderLoop = function(timestamp) {
     window.requestAnimationFrame(this.boundRenderLoop);
     
-    if (!this.renderer.finished())
-        this.renderer.render(timestamp);
+    if (!this.renderer.finished()) {
+        var nrender = 1;
+        if (this.renderer.totalRaysTraced() < 10000) {
+            nrender = 10
+
+        }
+        for (var x = 0; x < nrender; x++) {
+            this.renderer.render(timestamp);
+        }
+    }
     
     if (this.saveImageData) {
         /* Ensure we redraw the image before we grab it. This is a strange one:
