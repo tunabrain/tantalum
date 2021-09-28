@@ -177,7 +177,7 @@ Tantalum.prototype.setupUI = function() {
         spectrumRenderer.setSpectrum(renderer.getEmissionSpectrum());
     });
     
-    var bounceSlider = new tui.Slider("path-length", 1, 20, true, function(length) {
+    var bounceSlider = new tui.Slider("path-length", 1, 40, true, function(length) {
         this.setLabel((length - 1) + " light bounces");
         renderer.setMaxPathLength(length);
     });
