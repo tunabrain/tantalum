@@ -183,7 +183,7 @@ Tantalum.prototype.setupUI = function() {
     });
     bounceSlider.setValue(12);
     
-    var sampleSlider = new tui.Slider("sample-count", 400, 700, true, function(exponent100) {
+    var sampleSlider = new tui.Slider("sample-count", 400, 800, true, function(exponent100) {
         var sampleCount = Math.floor(Math.pow(10, exponent100*0.01));
         this.setLabel(sampleCount + " light paths");
         renderer.setMaxSampleCount(sampleCount);
