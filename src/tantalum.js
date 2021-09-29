@@ -117,7 +117,7 @@ Tantalum.prototype.setupUI = function() {
     function map(a, b) { return [a*0.5/1.78 + 0.5, -b*0.5 + 0.5]; }
 
     var config = {
-        "resolutions": [[820, 461], [1024, 576], [1280, 720], [1600, 900], [1920, 1080], [4096, 2160]],
+        "resolutions": [[820, 461], [1024, 576], [1280, 720], [1600, 900], [1920, 1080], [4096, 2160], [8192, 4320]],
         "scenes": [
             {'shader': 'scene1', 'name': 'Lenses',               'posA': [0.5,  0.5],      'posB': [0.5, 0.5],        'spread': tcore.Renderer.SPREAD_POINT},
             {'shader': 'scene6', 'name': 'Spheres',              'posA': map(-1.59, 0.65), 'posB': map(0.65, -0.75),  'spread': tcore.Renderer.SPREAD_BEAM},
@@ -171,19 +171,19 @@ Tantalum.prototype.setupUI = function() {
     
     var mouseListener = new tui.MouseListener(canvas, renderer.setEmitterPos.bind(renderer));
     
-    var temperatureSlider = new tui.Slider("emission-temperature", 1000, 10000, true, function(temperature) {
+    var temperatureSlider = new tui.Slider("emission-temperature", 100, 100000, true, function(temperature) {
         this.setLabel("Temperature: " + temperature + "K");
         renderer.setEmitterTemperature(temperature);
         spectrumRenderer.setSpectrum(renderer.getEmissionSpectrum());
     });
     
-    var bounceSlider = new tui.Slider("path-length", 1, 40, true, function(length) {
+    var bounceSlider = new tui.Slider("path-length", 1, 41, true, function(length) {
         this.setLabel((length - 1) + " light bounces");
         renderer.setMaxPathLength(length);
     });
     bounceSlider.setValue(12);
     
-    var sampleSlider = new tui.Slider("sample-count", 400, 800, true, function(exponent100) {
+    var sampleSlider = new tui.Slider("sample-count", 1, 800, true, function(exponent100) {
         var sampleCount = Math.floor(Math.pow(10, exponent100*0.01));
         this.setLabel(sampleCount + " light paths");
         renderer.setMaxSampleCount(sampleCount);
