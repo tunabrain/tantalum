@@ -171,19 +171,19 @@ Tantalum.prototype.setupUI = function() {
     
     var mouseListener = new tui.MouseListener(canvas, renderer.setEmitterPos.bind(renderer));
     
-    var temperatureSlider = new tui.Slider("emission-temperature", 1000, 10000, true, function(temperature) {
+    var temperatureSlider = new tui.Slider("emission-temperature", 100, 100000, true, function(temperature) {
         this.setLabel("Temperature: " + temperature + "K");
         renderer.setEmitterTemperature(temperature);
         spectrumRenderer.setSpectrum(renderer.getEmissionSpectrum());
     });
     
-    var bounceSlider = new tui.Slider("path-length", 1, 20, true, function(length) {
+    var bounceSlider = new tui.Slider("path-length", 1, 41, true, function(length) {
         this.setLabel((length - 1) + " light bounces");
         renderer.setMaxPathLength(length);
     });
     bounceSlider.setValue(12);
     
-    var sampleSlider = new tui.Slider("sample-count", 400, 700, true, function(exponent100) {
+    var sampleSlider = new tui.Slider("sample-count", 1, 1000, true, function(exponent100) {
         var sampleCount = Math.floor(Math.pow(10, exponent100*0.01));
         this.setLabel(sampleCount + " light paths");
         renderer.setMaxSampleCount(sampleCount);
